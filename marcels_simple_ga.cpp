@@ -15,14 +15,12 @@ double explore_random(Benchmarks*  fp, int maxevals) {
     double pop[pop_size][dim];
     double fitness[pop_size], best_fitness, best_individual[dim];
     // variables for selection
-    const unsigned amount_to_select=10;
-    double selected[amount_to_select][dim];
+    double mating_list[2*pop_size][dim];
     double min_fitness;
     double max_fitness;
     double total_fitness;
     double offset[pop_size];
     double total_offset;
-    unsigned amount_selected;
     double roulette_random;
 
     fp->nextRun();
@@ -77,13 +75,11 @@ double explore_random(Benchmarks*  fp, int maxevals) {
         }
 
         // do roulette selection
-        amount_selected = 0;
-        while (amount_selected < amount_to_select) {
+        for (unsigned i=0; i < 2*pop_size; i++) {
             roulette_random = getrnd();
-            for (unsigned i=1; i<pop_size; i++) {
-                if (roulette_random < offset[i]) {
-                    std::copy(selected[amount_selected],selected[amount_selected]+dim,pop[i-1]);
-                    amount_selected++;
+            for (unsigned j=0; j<pop_size; j++) {
+                if (roulette_random < offset[j]) {
+                    std::copy(mating_list[i],mating_list[i]+dim,pop[j]);
                     break;
                 }
             }
