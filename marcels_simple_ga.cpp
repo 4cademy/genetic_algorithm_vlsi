@@ -9,7 +9,7 @@ double getrnd() {
   return (double)rand() / (double)RAND_MAX;
 }
 
-double explore_random(Benchmarks*  fp, int maxevals) {
+double genetic_algorithm(Benchmarks*  fp, int maxevals) {
     const unsigned pop_size=100;
     const unsigned dim=1000;
     double pop[pop_size][dim];
@@ -35,18 +35,19 @@ double explore_random(Benchmarks*  fp, int maxevals) {
     // compute INITIAL FITNESS
     fitness[0] = fp->compute(pop[0]);
     best_fitness = fitness[0];
-    std::copy(best_individual, best_individual+dim, pop[0]);
+    // std::copy(best_individual, best_individual+dim, pop[0]);
     for (unsigned i=1; i<pop_size; i++) {
         fitness[i] = fp->compute(pop[i]);
         if (fitness[i] < best_fitness) {
           best_fitness = fitness[i];
-          std::copy(best_individual, best_individual+dim, pop[i]);
+          // std::copy(best_individual, best_individual+dim, pop[i]);
         }
     }
 
     // run actual EVOLUTION
     for (unsigned evals = 1; evals < maxevals; evals++) {
         printf("Evals: %u\n", evals);
+
         // SELECTION (roulette wheel selection)
         // find minimal (best) fitness and maximal (worst) fitness
         min_fitness = fitness[0];
@@ -85,22 +86,30 @@ double explore_random(Benchmarks*  fp, int maxevals) {
             }
         }
 
-        // HIER WEITER MACHEN
+        // CROSSOVER (uniform crossover)
+        for (unsigned  i=1; i<pop_size; i++) {
+            for (unsigned  j=0; j<dim; j++) {
+                if (getrnd() < 0.5) {       // choose gene of parent A
+                    pop[i][j] = mating_list[2*i][j];
+                } else {                    // choose gene of parent B
+                    pop[i][j] = mating_list[2*i+1][j];
+                }
+            }
+        }
 
-    }
+        // MUTATION
+        //
+        //
 
-
-
-
-    for (i=0; i<dim; i++){
-      pop[i]=getrnd()*200-100;
-    }
-
-    fitness = fp->compute(pop);
-
-    if (fitness < best_fitness) {
-       best_fitness = fitness;
-       printf("%e\n", best_fitness);
+        // compute FITNESS of new generation
+        for (unsigned i=0; i<pop_size; i++) {
+            fitness[i] = fp->compute(pop[i]);
+            if (fitness[i] < best_fitness) {
+                best_fitness = fitness[i];
+                // std::copy(best_individual, best_individual+dim, pop[i]);
+            }
+        }
+        printf("%e\n", best_fitness);
     }
 
     return best_fitness;
@@ -126,7 +135,7 @@ int main(){
   for (unsigned i=0; i<funNum; i++){
     fp = generateFuncObj(funToRun[i]);
     gettimeofday(&start, NULL);
-    best_fitness = explore_random(fp, maxevals);
+    best_fitness = genetic_algorithm(fp, maxevals);
     gettimeofday(&end, NULL);
 
     printf("F %d value = %1.20E\n", fp->getID(), best_fitness);
