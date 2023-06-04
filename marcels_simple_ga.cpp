@@ -121,7 +121,7 @@ int main(){
   unsigned funToRun[] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
   // unsigned funToRun[] = {1};
   // unsigned funToRun[] = {15};
-  unsigned funNum = 3;
+  unsigned funNum = 1;
   double best_fitness;
 
   vector<double> runTimeVec;
