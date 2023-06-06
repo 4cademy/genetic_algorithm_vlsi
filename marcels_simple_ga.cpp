@@ -98,7 +98,7 @@ double genetic_algorithm(Benchmarks*  fp, int maxevals) {
             for (unsigned j=0; j<pop_size; j++) {
                 if (roulette_random < offset[j]) {
                     for (unsigned k=0; k < dim; k++) {
-                        mating_list[i][k] = pop[j][k];
+                        mating_list[i][k] = pop[j][k];          // ToDo prevent mating with itself
                     }
                     break;
                 }
@@ -106,7 +106,7 @@ double genetic_algorithm(Benchmarks*  fp, int maxevals) {
         }
 
         // CROSSOVER (uniform crossover)
-        for (unsigned  i=1; i<pop_size; i++) {
+        for (unsigned  i=0; i<pop_size; i++) {
             for (unsigned  j=0; j<dim; j++) {
                 if (getrnd() < 0.5) {       // choose gene of parent A
                     pop[i][j] = mating_list[2*i][j];
@@ -116,11 +116,11 @@ double genetic_algorithm(Benchmarks*  fp, int maxevals) {
             }
         }
 
-        //MUTATION
+        // MUTATION (displacement mutation)
         //
         //
 
-        //compute new FITNESS values
+        // compute new FITNESS values
         // printf("New Fitness:\n");
         for (unsigned i=0; i<pop_size; i++) {
             fitness[i] = fp->compute(pop[i]);
@@ -175,7 +175,7 @@ int main(){
   struct timeval start, end;
   long seconds, useconds;
   double mtime;
-  unsigned maxevals = 100;
+  unsigned maxevals = 1000;
 
   srand(time(NULL));
 
