@@ -8,17 +8,32 @@ double getrnd() {
   return (double)rand() / (double)RAND_MAX;
 }
 
-double explore_random(Benchmarks*  fp, int maxevals) {
-    const unsigned pop_size=10;
+double genetic_algorithm(Benchmarks*  fp, int maxevals) {
+    const unsigned pop_size=1000;
     const unsigned dim=1000;
-    double pop[pop_size][dim];
-    double fitness[pop_size], best_fitness;
+
+    double** pop = new double*[pop_size];
+    for (unsigned i = 0; i < pop_size; i++) {
+        pop[i] = new double[dim];
+    }
+    // double pop[pop_size][dim];
+
+    double* fitness = new double[pop_size];
+    // double fitness[pop_size];
+    double best_fitness;
+
     // variables for selection
-    double mating_list[2*pop_size][dim];
+    double** mating_list = new double*[2 * pop_size];
+    for (unsigned i = 0; i < 2 * pop_size; i++) {
+        mating_list[i] = new double[dim];
+    }
+    // double mating_list[2*pop_size][dim];
     double min_fitness;
     double max_fitness;
     double total_fitness;
-    double offset[pop_size];
+
+    double* offset = new double[pop_size];
+    // double offset[pop_size];
     double roulette_random;
 
     fp->nextRun();
@@ -135,6 +150,20 @@ double explore_random(Benchmarks*  fp, int maxevals) {
     printf("Min Fitness: %e\n", min_fitness);
     printf("Max Fitness: %e\n", max_fitness);
 
+    for (unsigned i = 0; i < pop_size; i++) {
+        delete[] pop[i];
+    }
+    delete[] pop;
+
+    for (unsigned i = 0; i < 2 * pop_size; i++) {
+        delete[] mating_list[i];
+    }
+    delete[] mating_list;
+
+    delete[] fitness;
+
+    delete[] offset;
+
     return best_fitness;
 }
 
@@ -158,7 +187,7 @@ int main(){
   for (unsigned i=0; i<funNum; i++){
     fp = generateFuncObj(funToRun[i]);
     gettimeofday(&start, NULL);
-    best_fitness = explore_random(fp, maxevals);
+    best_fitness = genetic_algorithm(fp, maxevals);
     gettimeofday(&end, NULL);
 
     printf("F %d value = %1.20E\n", fp->getID(), best_fitness);
