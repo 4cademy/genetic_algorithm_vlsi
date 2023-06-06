@@ -12,28 +12,24 @@ double genetic_algorithm(Benchmarks*  fp, int maxevals) {
     const unsigned pop_size=1000;
     const unsigned dim=1000;
 
-    double** pop = new double*[pop_size];
+    auto** pop = new double*[pop_size];
     for (unsigned i = 0; i < pop_size; i++) {
         pop[i] = new double[dim];
     }
-    // double pop[pop_size][dim];
 
-    double* fitness = new double[pop_size];
-    // double fitness[pop_size];
+    auto* fitness = new double[pop_size];
     double best_fitness;
 
     // variables for selection
-    double** mating_list = new double*[2 * pop_size];
+    auto** mating_list = new double*[2 * pop_size];
     for (unsigned i = 0; i < 2 * pop_size; i++) {
         mating_list[i] = new double[dim];
     }
-    // double mating_list[2*pop_size][dim];
     double min_fitness;
     double max_fitness;
     double total_fitness;
 
-    double* offset = new double[pop_size];
-    // double offset[pop_size];
+    auto* offset = new double[pop_size];
     double roulette_random;
 
     fp->nextRun();
@@ -150,20 +146,19 @@ double genetic_algorithm(Benchmarks*  fp, int maxevals) {
     printf("Min Fitness: %e\n", min_fitness);
     printf("Max Fitness: %e\n", max_fitness);
 
+    // free allocated memory
     for (unsigned i = 0; i < pop_size; i++) {
         delete[] pop[i];
     }
     delete[] pop;
-
     for (unsigned i = 0; i < 2 * pop_size; i++) {
         delete[] mating_list[i];
     }
     delete[] mating_list;
-
     delete[] fitness;
-
     delete[] offset;
 
+    // return best fitness value
     return best_fitness;
 }
 
