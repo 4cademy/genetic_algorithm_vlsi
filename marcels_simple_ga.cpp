@@ -9,56 +9,153 @@ double getrnd() {
 }
 
 double genetic_algorithm(Benchmarks*  fp, int maxevals) {
-    const unsigned pop_size=1000;
-    const unsigned dim=1000;
+    unsigned tries = 10;
 
-    auto** pop = new double*[pop_size];
-    for (unsigned i = 0; i < pop_size; i++) {
-        pop[i] = new double[dim];
-    }
+    auto* best_fitnesses = new double[tries];
 
-    auto* fitness = new double[pop_size];
-    double best_fitness;
+    for (unsigned t = 0; t < tries; t++) {
+        const unsigned pop_size=1000;
+        const unsigned dim=1000;
 
-    // variables for selection
-    auto** mating_list = new double*[2 * pop_size];
-    for (unsigned i = 0; i < 2 * pop_size; i++) {
-        mating_list[i] = new double[dim];
-    }
-    double min_fitness;
-    double max_fitness;
-    double total_fitness;
-
-    auto* offset = new double[pop_size];
-    double roulette_random;
-
-    fp->nextRun();
-
-    // create INITIAL POPULATION
-    for (unsigned i=0; i<pop_size; i++) {
-        for (unsigned j = 0; j < dim; j++) {
-            pop[i][j] = getrnd() * 200 - 100;
+        auto** pop = new double*[pop_size];
+        for (unsigned i = 0; i < pop_size; i++) {
+            pop[i] = new double[dim];
         }
-    }
 
-    // compute INITIAL FITNESS
-    fitness[0] = fp->compute(pop[0]);
-    best_fitness = fitness[0];
-    // printf("%e\n", fitness[0]);
-    for (unsigned i=1; i<pop_size; i++) {
-        fitness[i] = fp->compute(pop[i]);
-        // printf("%e\n", fitness[i]);
-        if (fitness[i] < best_fitness) {
-            best_fitness = fitness[i];
+        auto* fitness = new double[pop_size];
+        double best_fitness;
+
+        // variables for selection
+        auto** mating_list = new double*[2 * pop_size];
+        for (unsigned i = 0; i < 2 * pop_size; i++) {
+            mating_list[i] = new double[dim];
         }
-    }
+        double min_fitness;
+        double max_fitness;
+        double total_fitness;
 
-    // run actual EVOLUTION
-    for (int evals = 0; evals < maxevals; evals++) {
-        printf("Gen: %u\n", evals);
+        auto* offset = new double[pop_size];
+        double roulette_random;
 
-        // SELECTION (roulette wheel selection)
-        // find minimal (best) fitness and maximal (worst) fitness
+        fp->nextRun();
+
+        // create INITIAL POPULATION
+        for (unsigned i=0; i<pop_size; i++) {
+            for (unsigned j = 0; j < dim; j++) {
+                pop[i][j] = getrnd() * 200 - 100;
+            }
+        }
+
+        // compute INITIAL FITNESS
+        fitness[0] = fp->compute(pop[0]);
+        best_fitness = fitness[0];
+        // printf("%e\n", fitness[0]);
+        for (unsigned i=1; i<pop_size; i++) {
+            fitness[i] = fp->compute(pop[i]);
+            // printf("%e\n", fitness[i]);
+            if (fitness[i] < best_fitness) {
+                best_fitness = fitness[i];
+            }
+        }
+
+        // run actual EVOLUTION
+        for (int evals = 0; evals < maxevals; evals++) {
+            printf("Gen: %u\n", evals);
+
+            // SELECTION (roulette wheel selection)
+            // find minimal (best) fitness and maximal (worst) fitness
+            min_fitness = fitness[0];
+            max_fitness = fitness[0];
+            for (unsigned i=0; i<pop_size; i++) {
+                if (fitness[i] < min_fitness) {
+                    min_fitness = fitness[i];
+                } else if (fitness[i] > max_fitness) {
+                    max_fitness = fitness[i];
+                }
+            }
+            printf("Min Fitness: %e\n", min_fitness);
+            printf("Max Fitness: %e\n", max_fitness);
+
+
+            // shift fitness to all positive values and invert it so the minimal value has the highest fitness
+            // printf("Shifted fitness:\n");
+            for (unsigned i=0; i<pop_size; i++) {
+                // fitness[i] = (max_fitness + abs(min_fitness)) - (fitness[i]+abs(min_fitness));
+                fitness[i] = max_fitness - fitness[i];
+                // printf("%e\n", fitness[i]);
+            }
+
+            // calculate total shifted fitness
+            total_fitness = 0;
+            for (unsigned i=0; i<pop_size; i++) {
+                total_fitness += fitness[i];
+            }
+            offset[0] = fitness[0]/total_fitness;
+            // printf("Roulette Offsets:\n");
+            for (unsigned i=1; i<pop_size; i++) {
+                offset[i] = offset[i-1] + (fitness[i]/total_fitness);
+                // printf("%f\n", offset[i]);
+            }
+
+            // do roulette selection
+            for (unsigned i=0; i < 2*pop_size; i++) {
+                roulette_random = getrnd();
+                for (unsigned j=0; j<pop_size; j++) {
+                    if (roulette_random < offset[j]) {
+                        for (unsigned k=0; k < dim; k++) {
+                            mating_list[i][k] = pop[j][k];          // ToDo prevent mating with itself
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // CROSSOVER (uniform crossover)
+            for (unsigned  i=0; i<pop_size; i++) {
+                for (unsigned  j=0; j<dim; j++) {
+                    if (getrnd() < 0.5) {       // choose gene of parent A
+                        pop[i][j] = mating_list[2*i][j];
+                    } else {                    // choose gene of parent B
+                        pop[i][j] = mating_list[2*i+1][j];
+                    }
+                }
+            }
+
+            // MUTATION (displacement mutation)
+            /*
+            unsigned point_A = round(getrnd()*pop_size);
+            unsigned point_B = round(getrnd()*pop_size);
+            unsigned point_C;
+            if (point_A < point_B) {
+                point_C = round(getrnd()*(point_B-point_A)+point_A);
+            } else {
+                point_C = round(getrnd()*(point_A-point_B)+point_B);
+            }
+            auto** temp_pop = new double*[pop_size];
+            for (unsigned i = 0; i < pop_size; i++) {
+                pop[i] = new double[dim];
+            }
+            for (unsigned i=0; i<pop_size; i++) {
+                for (unsigned j=0; j<dim; j++) {
+                    temp_pop[i][j] = pop[i][j];
+                }
+            }
+            */
+
+            // compute new FITNESS values
+            // printf("New Fitness:\n");
+            for (unsigned i=0; i<pop_size; i++) {
+                fitness[i] = fp->compute(pop[i]);
+                // printf("%e\n", fitness[i]);
+                if (fitness[i] < best_fitness) {
+                    best_fitness = fitness[i];
+                }
+            }
+            printf("---------------------\n");
+        }
+
+        printf("Gen: %u\n", maxevals);
+        // min and max fitness for last generation
         min_fitness = fitness[0];
         max_fitness = fitness[0];
         for (unsigned i=0; i<pop_size; i++) {
@@ -71,95 +168,35 @@ double genetic_algorithm(Benchmarks*  fp, int maxevals) {
         printf("Min Fitness: %e\n", min_fitness);
         printf("Max Fitness: %e\n", max_fitness);
 
-
-        // shift fitness to all positive values and invert it so the minimal value has the highest fitness
-        // printf("Shifted fitness:\n");
-        for (unsigned i=0; i<pop_size; i++) {
-            // fitness[i] = (max_fitness + abs(min_fitness)) - (fitness[i]+abs(min_fitness));
-            fitness[i] = max_fitness - fitness[i];
-            // printf("%e\n", fitness[i]);
+        // free allocated memory
+        for (unsigned i = 0; i < pop_size; i++) {
+            delete[] pop[i];
         }
-
-        // calculate total shifted fitness
-        total_fitness = 0;
-        for (unsigned i=0; i<pop_size; i++) {
-            total_fitness += fitness[i];
+        delete[] pop;
+        for (unsigned i = 0; i < 2 * pop_size; i++) {
+            delete[] mating_list[i];
         }
-        offset[0] = fitness[0]/total_fitness;
-        // printf("Roulette Offsets:\n");
-        for (unsigned i=1; i<pop_size; i++) {
-            offset[i] = offset[i-1] + (fitness[i]/total_fitness);
-            // printf("%f\n", offset[i]);
-        }
+        delete[] mating_list;
+        delete[] fitness;
+        delete[] offset;
 
-        // do roulette selection
-        for (unsigned i=0; i < 2*pop_size; i++) {
-            roulette_random = getrnd();
-            for (unsigned j=0; j<pop_size; j++) {
-                if (roulette_random < offset[j]) {
-                    for (unsigned k=0; k < dim; k++) {
-                        mating_list[i][k] = pop[j][k];          // ToDo prevent mating with itself
-                    }
-                    break;
-                }
-            }
-        }
-
-        // CROSSOVER (uniform crossover)
-        for (unsigned  i=0; i<pop_size; i++) {
-            for (unsigned  j=0; j<dim; j++) {
-                if (getrnd() < 0.5) {       // choose gene of parent A
-                    pop[i][j] = mating_list[2*i][j];
-                } else {                    // choose gene of parent B
-                    pop[i][j] = mating_list[2*i+1][j];
-                }
-            }
-        }
-
-        // MUTATION (displacement mutation)
-        //
-        //
-
-        // compute new FITNESS values
-        // printf("New Fitness:\n");
-        for (unsigned i=0; i<pop_size; i++) {
-            fitness[i] = fp->compute(pop[i]);
-            // printf("%e\n", fitness[i]);
-            if (fitness[i] < best_fitness) {
-                best_fitness = fitness[i];
-            }
-        }
-        printf("---------------------\n");
+        best_fitnesses[t] = best_fitness;
     }
 
-    printf("Gen: %u\n", maxevals);
-    // min and max fitness for last generation
-    min_fitness = fitness[0];
-    max_fitness = fitness[0];
-    for (unsigned i=0; i<pop_size; i++) {
-        if (fitness[i] < min_fitness) {
-            min_fitness = fitness[i];
-        } else if (fitness[i] > max_fitness) {
-            max_fitness = fitness[i];
+    // return global best fitness value over all trys
+    double global_best_fitness = best_fitnesses[0];
+    for (unsigned i=0; i<tries; i++)
+    {
+        printf("Best fitness %i: %e\n", i, best_fitnesses[i]);
+    }
+    for (unsigned i=0; i<tries; i++) {
+        if (best_fitnesses[i] < global_best_fitness) {
+            global_best_fitness = best_fitnesses[i];
         }
     }
-    printf("Min Fitness: %e\n", min_fitness);
-    printf("Max Fitness: %e\n", max_fitness);
+    delete[] best_fitnesses;
 
-    // free allocated memory
-    for (unsigned i = 0; i < pop_size; i++) {
-        delete[] pop[i];
-    }
-    delete[] pop;
-    for (unsigned i = 0; i < 2 * pop_size; i++) {
-        delete[] mating_list[i];
-    }
-    delete[] mating_list;
-    delete[] fitness;
-    delete[] offset;
-
-    // return best fitness value
-    return best_fitness;
+    return global_best_fitness;
 }
 
 int main(){
