@@ -25,6 +25,7 @@ double explore_random(Benchmarks*  fp, int maxevals) {
   evals = 1;
   best_fitness = fitness;
 
+  int counter = 0;
   for (evals = 1; evals < maxevals; evals++) {
     for (i=0; i<dim; i++){
       X[i]=getrnd()*200-100;
@@ -32,9 +33,15 @@ double explore_random(Benchmarks*  fp, int maxevals) {
 
     fitness = fp->compute(X);
 
+    counter++;
+    if (counter == 1000) {
+        printf("Eval: %i\n", evals);
+        printf("%e\n", best_fitness);
+        counter = 0;
+    }
+
     if (fitness < best_fitness) {
        best_fitness = fitness;
-       printf("%e\n", best_fitness);
     }
   }
 
@@ -47,14 +54,14 @@ int main(){
   unsigned funToRun[] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
   // unsigned funToRun[] = {1};
   // unsigned funToRun[] = {15};
-  unsigned funNum = 3;
+  unsigned funNum = 1;
   double best_fitness;
 
   vector<double> runTimeVec;
   struct timeval start, end;
   long seconds, useconds;
   double mtime;
-  unsigned maxevals = 1000;
+  unsigned maxevals = 1'000'000'000;
 
   srand(time(NULL));
 

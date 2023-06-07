@@ -27,7 +27,7 @@ Benchmarks::Benchmarks(){
 
   // minX = -100;
   // maxX = 100;
-  maxevals = 3000000;
+  maxevals = 3'000'000;
   numevals = 2*maxevals;
   best_fitness = -1;
   unsigned int increm = maxevals/10;
@@ -1158,7 +1158,7 @@ void Benchmarks::update(double newfitness) {
       output = "results_f" +std::to_string(ID) +".csv";
     }
   }
-  numevals += 1;
+  // numevals += 1;                         // This was needed for the original competition code
 
   if (numevals == milestones[mil_pos]) {
     save_error();

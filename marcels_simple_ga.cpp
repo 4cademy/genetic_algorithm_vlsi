@@ -9,7 +9,7 @@ double getrnd() {
 }
 
 double genetic_algorithm(Benchmarks*  fp, int maxevals) {
-    unsigned tries = 10;
+    unsigned tries = 1;
 
     auto* best_fitnesses = new double[tries];
 
