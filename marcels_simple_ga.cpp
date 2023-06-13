@@ -8,13 +8,35 @@ double getrnd() {
   return (double)rand() / (double)RAND_MAX;
 }
 
+void crossover_uniform(double** mating_list, double** pop, const unsigned pop_size, const unsigned dim) {
+    for (unsigned  i=0; i<pop_size; i++) {
+        for (unsigned  j=0; j<dim; j++) {
+            if (getrnd() < 0.5) {       // choose gene of parent A
+                pop[i][j] = mating_list[2*i][j];
+            } else {                    // choose gene of parent B
+                pop[i][j] = mating_list[2*i+1][j];
+            }
+        }
+    }
+}
+
+void mutation_random_resetting(double** pop, const unsigned pop_size, const unsigned dim, double mutation_rate) {
+    for (unsigned i=0; i<pop_size; i++) {
+        for (unsigned j=0; j<dim; j++) {
+            if (getrnd() < mutation_rate) {
+                pop[i][j] = getrnd() * 200 - 100;
+            }
+        }
+    }
+}
+
 double genetic_algorithm(Benchmarks*  fp, int maxevals) {
     unsigned tries = 1;
 
     auto* best_fitnesses = new double[tries];
 
     for (unsigned t = 0; t < tries; t++) {
-        const unsigned pop_size=1000;
+        const unsigned pop_size=10000;
         const unsigned dim=1000;
 
         auto** pop = new double*[pop_size];
@@ -110,37 +132,13 @@ double genetic_algorithm(Benchmarks*  fp, int maxevals) {
                 }
             }
 
-            // CROSSOVER (uniform crossover)
-            for (unsigned  i=0; i<pop_size; i++) {
-                for (unsigned  j=0; j<dim; j++) {
-                    if (getrnd() < 0.5) {       // choose gene of parent A
-                        pop[i][j] = mating_list[2*i][j];
-                    } else {                    // choose gene of parent B
-                        pop[i][j] = mating_list[2*i+1][j];
-                    }
-                }
-            }
+            // CROSSOVER
+            crossover_uniform(mating_list, pop, pop_size, dim);
 
-            // MUTATION (displacement mutation)
-            /*
-            unsigned point_A = round(getrnd()*pop_size);
-            unsigned point_B = round(getrnd()*pop_size);
-            unsigned point_C;
-            if (point_A < point_B) {
-                point_C = round(getrnd()*(point_B-point_A)+point_A);
-            } else {
-                point_C = round(getrnd()*(point_A-point_B)+point_B);
-            }
-            auto** temp_pop = new double*[pop_size];
-            for (unsigned i = 0; i < pop_size; i++) {
-                pop[i] = new double[dim];
-            }
-            for (unsigned i=0; i<pop_size; i++) {
-                for (unsigned j=0; j<dim; j++) {
-                    temp_pop[i][j] = pop[i][j];
-                }
-            }
-            */
+
+            // MUTATION
+            double mutation_rate = 0.0001;
+            // mutation_random_resetting(pop, pop_size, dim, mutation_rate);
 
             // compute new FITNESS values
             // printf("New Fitness:\n");
