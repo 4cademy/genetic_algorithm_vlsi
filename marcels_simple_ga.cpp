@@ -68,13 +68,13 @@ void mutation_random_resetting(double** pop, const unsigned pop_size, const unsi
 
 double genetic_algorithm(Benchmarks*  fp, int maxevals) {
     unsigned tries = 1;
+    const unsigned pop_size=10'000;
+    const unsigned dim=1000;
+    const double convergence_threshold = 0.1;
 
     auto* best_fitnesses = new double[tries];
 
     for (unsigned t = 0; t < tries; t++) {
-        const unsigned pop_size=1'000;
-        const unsigned dim=1000;
-
         //create population
         auto** pop = new double*[pop_size];
         for (unsigned i = 0; i < pop_size; i++) {
@@ -126,7 +126,6 @@ double genetic_algorithm(Benchmarks*  fp, int maxevals) {
         // run actual EVOLUTION
         int evals = 0;
         int convergence_counter = 0;
-        double convergence_threshold = 0.1;
 
         printf("Gen: %u\n", 0);
         while (evals < maxevals && convergence_counter < 10) {
