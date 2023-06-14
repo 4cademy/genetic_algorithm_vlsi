@@ -3,6 +3,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <unistd.h>
+#include <iostream>
+#include <fstream>
+#include <algorithm>
 
 double getrnd() {
   return (double)rand() / (double)RAND_MAX;
@@ -16,6 +19,29 @@ void create_population(double** pop, const unsigned pop_size, const unsigned dim
     }
 }
 
+// SELECTION
+void compute_fitness(double** pop, double* fitness, double &min_fitness, double &max_fitness, double &convergence, double &best_fitness, const unsigned pop_size, Benchmarks* fp) {
+    fitness[0] = fp->compute(pop[0]);
+    min_fitness = fitness[0];
+    max_fitness = fitness[0];
+    // compute new fitness and find min and max fitness
+    for (unsigned i=1; i<pop_size; i++) {
+        fitness[i] = fp->compute(pop[i]);
+        if (fitness[i] < min_fitness) {
+            min_fitness = fitness[i];
+        } else if (fitness[i] > max_fitness) {
+            max_fitness = fitness[i];
+        }
+    }
+    // check if min_fitness is better than current best_fitness
+    if (min_fitness < best_fitness) {
+        best_fitness = min_fitness;
+    }
+    convergence = 1-min_fitness/max_fitness;
+}
+
+// CROSSOVER
+
 void crossover_uniform(double** mating_list, double** pop, const unsigned pop_size, const unsigned dim) {
     for (unsigned  i=0; i<pop_size; i++) {
         for (unsigned  j=0; j<dim; j++) {
@@ -27,6 +53,8 @@ void crossover_uniform(double** mating_list, double** pop, const unsigned pop_si
         }
     }
 }
+
+// MUTATION
 
 void mutation_random_resetting(double** pop, const unsigned pop_size, const unsigned dim, double mutation_rate) {
     for (unsigned i=0; i<pop_size; i++) {
@@ -44,28 +72,37 @@ double genetic_algorithm(Benchmarks*  fp, int maxevals) {
     auto* best_fitnesses = new double[tries];
 
     for (unsigned t = 0; t < tries; t++) {
-        const unsigned pop_size=100'000;
+        const unsigned pop_size=1'000;
         const unsigned dim=1000;
 
+        //create population
         auto** pop = new double*[pop_size];
         for (unsigned i = 0; i < pop_size; i++) {
             pop[i] = new double[dim];
         }
 
+        // create fitness array
         auto* fitness = new double[pop_size];
         double best_fitness;
 
-        // variables for selection
+        // create mating list
         auto** mating_list = new double*[2 * pop_size];
         for (unsigned i = 0; i < 2 * pop_size; i++) {
             mating_list[i] = new double[dim];
         }
+
+        // create fitness metrics
         double min_fitness;
         double max_fitness;
+        double convergence;
         double total_fitness;
 
         auto* offset = new double[pop_size];
         double roulette_random;
+
+        // create and open export file
+        std::ofstream fitness_export;
+        fitness_export.open ("fitness.csv");
 
         fp->nextRun();
 
@@ -73,36 +110,29 @@ double genetic_algorithm(Benchmarks*  fp, int maxevals) {
         create_population(pop, pop_size, dim);
 
         // compute INITIAL FITNESS
-        fitness[0] = fp->compute(pop[0]);
-        best_fitness = fitness[0];
-        // printf("%e\n", fitness[0]);
-        for (unsigned i=1; i<pop_size; i++) {
-            fitness[i] = fp->compute(pop[i]);
-            // printf("%e\n", fitness[i]);
-            if (fitness[i] < best_fitness) {
-                best_fitness = fitness[i];
-            }
-        }
+        best_fitness = fp->compute(pop[0]);
+        compute_fitness(pop, fitness, min_fitness, max_fitness, convergence, best_fitness, pop_size, fp);
+
+        // write initial fitness metrics to export file
+        string minf = std::to_string(min_fitness);
+        std::replace(minf.begin(), minf.end(), '.', ',');
+        string maxf = std::to_string(max_fitness);
+        std::replace(maxf.begin(), maxf.end(), '.', ',');
+        string conv = std::to_string(convergence);
+        std::replace(conv.begin(), conv.end(), '.', ',');
+
+        fitness_export << "0" << ";" << minf << ";" << maxf << ";" << conv << "\n";
 
         // run actual EVOLUTION
-        for (int evals = 0; evals < maxevals; evals++) {
-            printf("Gen: %u\n", evals);
+        int evals = 0;
+        int convergence_counter = 0;
+        double convergence_threshold = 0.1;
+
+        printf("Gen: %u\n", 0);
+        while (evals < maxevals && convergence_counter < 10) {
+            evals++;
 
             // SELECTION (roulette wheel selection)
-            // find minimal (best) fitness and maximal (worst) fitness
-            min_fitness = fitness[0];
-            max_fitness = fitness[0];
-            for (unsigned i=0; i<pop_size; i++) {
-                if (fitness[i] < min_fitness) {
-                    min_fitness = fitness[i];
-                } else if (fitness[i] > max_fitness) {
-                    max_fitness = fitness[i];
-                }
-            }
-            printf("Min Fitness: %e\n", min_fitness);
-            printf("Max Fitness: %e\n", max_fitness);
-
-
             // shift fitness to all positive values and invert it so the minimal value has the highest fitness
             // printf("Shifted fitness:\n");
             for (unsigned i=0; i<pop_size; i++) {
@@ -145,30 +175,32 @@ double genetic_algorithm(Benchmarks*  fp, int maxevals) {
             // mutation_random_resetting(pop, pop_size, dim, mutation_rate);
 
             // compute new FITNESS values
-            // printf("New Fitness:\n");
-            for (unsigned i=0; i<pop_size; i++) {
-                fitness[i] = fp->compute(pop[i]);
-                // printf("%e\n", fitness[i]);
-                if (fitness[i] < best_fitness) {
-                    best_fitness = fitness[i];
-                }
-            }
-            printf("---------------------\n");
-        }
+            compute_fitness(pop, fitness, min_fitness, max_fitness, convergence, best_fitness, pop_size, fp);
 
-        printf("Gen: %u\n", maxevals);
-        // min and max fitness for last generation
-        min_fitness = fitness[0];
-        max_fitness = fitness[0];
-        for (unsigned i=0; i<pop_size; i++) {
-            if (fitness[i] < min_fitness) {
-                min_fitness = fitness[i];
-            } else if (fitness[i] > max_fitness) {
-                max_fitness = fitness[i];
+            if (convergence < convergence_threshold) {
+                convergence_counter++;
+            } else {
+                convergence_counter = 0;
             }
+
+            printf("Min Fitness: %e\n", min_fitness);
+            printf("Max Fitness: %e\n", max_fitness);
+            printf("Convergence: %f\n", convergence);
+
+            // write next fitness metrics to export file
+            minf = std::to_string(min_fitness);
+            std::replace(minf.begin(), minf.end(), '.', ',');
+            maxf = std::to_string(max_fitness);
+            std::replace(maxf.begin(), maxf.end(), '.', ',');
+            conv = std::to_string(convergence);
+            std::replace(conv.begin(), conv.end(), '.', ',');
+
+            fitness_export << std::to_string(evals) << ";" << minf << ";" << maxf << ";" << conv << "\n";
+
+
+            printf("---------------------\n");
+            printf("Gen: %u\n", evals);
         }
-        printf("Min Fitness: %e\n", min_fitness);
-        printf("Max Fitness: %e\n", max_fitness);
 
         // free allocated memory
         for (unsigned i = 0; i < pop_size; i++) {
@@ -182,6 +214,10 @@ double genetic_algorithm(Benchmarks*  fp, int maxevals) {
         delete[] fitness;
         delete[] offset;
 
+        // close export file
+        fitness_export.close();
+
+        // store best fitness value of current try
         best_fitnesses[t] = best_fitness;
     }
 
@@ -214,7 +250,7 @@ int main(){
   struct timeval start, end;
   long seconds, useconds;
   double mtime;
-  unsigned maxevals = 10'000;
+  unsigned maxevals = 1'000;
 
   srand(time(NULL));
 
