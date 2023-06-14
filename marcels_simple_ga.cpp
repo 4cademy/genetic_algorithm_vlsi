@@ -8,6 +8,14 @@ double getrnd() {
   return (double)rand() / (double)RAND_MAX;
 }
 
+void create_population(double** pop, const unsigned pop_size, const unsigned dim) {
+    for (unsigned i=0; i<pop_size; i++) {
+        for (unsigned j=0; j<dim; j++) {
+            pop[i][j] = getrnd() * 200 - 100;
+        }
+    }
+}
+
 void crossover_uniform(double** mating_list, double** pop, const unsigned pop_size, const unsigned dim) {
     for (unsigned  i=0; i<pop_size; i++) {
         for (unsigned  j=0; j<dim; j++) {
@@ -36,7 +44,7 @@ double genetic_algorithm(Benchmarks*  fp, int maxevals) {
     auto* best_fitnesses = new double[tries];
 
     for (unsigned t = 0; t < tries; t++) {
-        const unsigned pop_size=10000;
+        const unsigned pop_size=100'000;
         const unsigned dim=1000;
 
         auto** pop = new double*[pop_size];
@@ -62,11 +70,7 @@ double genetic_algorithm(Benchmarks*  fp, int maxevals) {
         fp->nextRun();
 
         // create INITIAL POPULATION
-        for (unsigned i=0; i<pop_size; i++) {
-            for (unsigned j = 0; j < dim; j++) {
-                pop[i][j] = getrnd() * 200 - 100;
-            }
-        }
+        create_population(pop, pop_size, dim);
 
         // compute INITIAL FITNESS
         fitness[0] = fp->compute(pop[0]);
@@ -210,7 +214,7 @@ int main(){
   struct timeval start, end;
   long seconds, useconds;
   double mtime;
-  unsigned maxevals = 1000;
+  unsigned maxevals = 10'000;
 
   srand(time(NULL));
 
