@@ -6,12 +6,14 @@
 #include <iostream>
 #include <fstream>
 #include <algorithm>
+#include <omp.h>
 
 double getrnd() {
   return (double)rand() / (double)RAND_MAX;
 }
 
 void create_population(double** pop, const unsigned pop_size, const unsigned dim) {
+    #pragma omp parallel for
     for (unsigned i=0; i<pop_size; i++) {
         for (unsigned j=0; j<dim; j++) {
             pop[i][j] = getrnd() * 200 - 100;
@@ -25,6 +27,7 @@ void compute_fitness(double** pop, double* fitness, double &min_fitness, double 
     min_fitness = fitness[0];
     max_fitness = fitness[0];
     // compute new fitness and find min and max fitness
+    #pragma omp parallel for reduction(min:min_fitness) reduction(max:max_fitness)
     for (unsigned i=1; i<pop_size; i++) {
         fitness[i] = fp->compute(pop[i]);
         if (fitness[i] < min_fitness) {
