@@ -1,5 +1,5 @@
 CC=g++
-CXXFLAGS=-Wall -pedantic -std=c++14 -O3
+CXXFLAGS=-Wall -pedantic -std=c++14 -O3 -fopenmp
 #CXXFLAGS=-Wall -pedantic -std=c++0x  -ggdb -DDEBUG
 
 OBJECTS=Benchmarks.o \
