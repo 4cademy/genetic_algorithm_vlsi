@@ -26,16 +26,33 @@ void compute_fitness(double** pop, double* fitness, double &min_fitness, double 
     fitness[0] = fp->compute(pop[0]);
     min_fitness = fitness[0];
     max_fitness = fitness[0];
+
     // compute new fitness and find min and max fitness
-    #pragma omp parallel for reduction(min:min_fitness) reduction(max:max_fitness)
-    for (unsigned i=1; i<pop_size; i++) {
+    #pragma omp parallel for
+    for (unsigned i = 1; i < pop_size; i++) {
+
+        #pragma omp critical
+        {
         fitness[i] = fp->compute(pop[i]);
+        }
+
         if (fitness[i] < min_fitness) {
             min_fitness = fitness[i];
         } else if (fitness[i] > max_fitness) {
             max_fitness = fitness[i];
         }
+
+        /*
+        #pragma omp critical
+        {
+            for (unsigned j = 0; j < pop_size; j++) {
+                printf("%e\n", fitness[j]);
+            }
+            printf("%i--------------------\n", i);
+        }
+        */
     }
+
     // check if min_fitness is better than current best_fitness
     if (min_fitness < best_fitness) {
         best_fitness = min_fitness;
@@ -43,9 +60,46 @@ void compute_fitness(double** pop, double* fitness, double &min_fitness, double 
     convergence = 1-min_fitness/max_fitness;
 }
 
-// CROSSOVER
+void selection_roulette(double** pop, double* fitness, double** mating_list, double &max_fitness, const unsigned pop_size, const unsigned dim) {
+    // create list of offsets for roulette selection
+    auto* offset = new double[pop_size];
 
+    // shift fitness to all positive values and invert it so the minimal value has the highest fitness
+    for (unsigned i=0; i<pop_size; i++) {
+        // fitness[i] = (max_fitness + abs(min_fitness)) - (fitness[i]+abs(min_fitness));
+        fitness[i] = max_fitness - fitness[i];
+    }
+
+    // calculate total shifted fitness
+    double total_fitness = 0;
+    for (unsigned i=0; i<pop_size; i++) {
+        total_fitness += fitness[i];
+    }
+    offset[0] = fitness[0]/total_fitness;
+    for (unsigned i=1; i<pop_size; i++) {
+        offset[i] = offset[i-1] + (fitness[i]/total_fitness);
+    }
+
+    // do roulette selection
+    for (unsigned i=0; i < 2*pop_size; i++) {
+        double roulette_random = getrnd();
+        for (unsigned j=0; j<pop_size; j++) {
+            if (roulette_random < offset[j]) {
+                for (unsigned k=0; k < dim; k++) {
+                    mating_list[i][k] = pop[j][k];          // ToDo prevent mating with itself
+                }
+                break;
+            }
+        }
+    }
+
+    // free memory
+    delete[] offset;
+}
+
+// CROSSOVER
 void crossover_uniform(double** mating_list, double** pop, const unsigned pop_size, const unsigned dim) {
+    #pragma omp parallel for
     for (unsigned  i=0; i<pop_size; i++) {
         for (unsigned  j=0; j<dim; j++) {
             if (getrnd() < 0.5) {       // choose gene of parent A
@@ -71,7 +125,7 @@ void mutation_random_resetting(double** pop, const unsigned pop_size, const unsi
 
 double genetic_algorithm(Benchmarks*  fp, int maxevals) {
     unsigned tries = 1;
-    const unsigned pop_size=10'000;
+    const unsigned pop_size=1000;
     const unsigned dim=1000;
     const double convergence_threshold = 0.1;
 
@@ -88,20 +142,16 @@ double genetic_algorithm(Benchmarks*  fp, int maxevals) {
         auto* fitness = new double[pop_size];
         double best_fitness;
 
+        // create fitness metrics
+        double min_fitness;
+        double max_fitness;
+        double convergence;
+
         // create mating list
         auto** mating_list = new double*[2 * pop_size];
         for (unsigned i = 0; i < 2 * pop_size; i++) {
             mating_list[i] = new double[dim];
         }
-
-        // create fitness metrics
-        double min_fitness;
-        double max_fitness;
-        double convergence;
-        double total_fitness;
-
-        auto* offset = new double[pop_size];
-        double roulette_random;
 
         // create and open export file
         std::ofstream fitness_export;
@@ -135,38 +185,7 @@ double genetic_algorithm(Benchmarks*  fp, int maxevals) {
             evals++;
 
             // SELECTION (roulette wheel selection)
-            // shift fitness to all positive values and invert it so the minimal value has the highest fitness
-            // printf("Shifted fitness:\n");
-            for (unsigned i=0; i<pop_size; i++) {
-                // fitness[i] = (max_fitness + abs(min_fitness)) - (fitness[i]+abs(min_fitness));
-                fitness[i] = max_fitness - fitness[i];
-                // printf("%e\n", fitness[i]);
-            }
-
-            // calculate total shifted fitness
-            total_fitness = 0;
-            for (unsigned i=0; i<pop_size; i++) {
-                total_fitness += fitness[i];
-            }
-            offset[0] = fitness[0]/total_fitness;
-            // printf("Roulette Offsets:\n");
-            for (unsigned i=1; i<pop_size; i++) {
-                offset[i] = offset[i-1] + (fitness[i]/total_fitness);
-                // printf("%f\n", offset[i]);
-            }
-
-            // do roulette selection
-            for (unsigned i=0; i < 2*pop_size; i++) {
-                roulette_random = getrnd();
-                for (unsigned j=0; j<pop_size; j++) {
-                    if (roulette_random < offset[j]) {
-                        for (unsigned k=0; k < dim; k++) {
-                            mating_list[i][k] = pop[j][k];          // ToDo prevent mating with itself
-                        }
-                        break;
-                    }
-                }
-            }
+            selection_roulette(pop, fitness, mating_list, max_fitness, pop_size, dim);
 
             // CROSSOVER
             crossover_uniform(mating_list, pop, pop_size, dim);
@@ -209,12 +228,11 @@ double genetic_algorithm(Benchmarks*  fp, int maxevals) {
             delete[] pop[i];
         }
         delete[] pop;
+        delete[] fitness;
         for (unsigned i = 0; i < 2 * pop_size; i++) {
             delete[] mating_list[i];
         }
         delete[] mating_list;
-        delete[] fitness;
-        delete[] offset;
 
         // close export file
         fitness_export.close();
