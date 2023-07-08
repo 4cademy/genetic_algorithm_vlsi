@@ -7,13 +7,17 @@
 #include <fstream>
 #include <algorithm>
 #include <omp.h>
+#include <cmath>
+
+const unsigned dim = 1000;
+auto* opt1 = new double[dim];
 
 double getrnd() {
   return (double)rand() / (double)RAND_MAX;
 }
 
-void create_population(double** pop, const unsigned pop_size, const unsigned dim) {
-    #pragma omp parallel for
+void create_population(double** pop, const unsigned pop_size) {
+    #pragma omp parallel for collapse(2) default(none) shared(pop, pop_size, dim)
     for (unsigned i=0; i<pop_size; i++) {
         for (unsigned j=0; j<dim; j++) {
             pop[i][j] = getrnd() * 200 - 100;
@@ -21,19 +25,54 @@ void create_population(double** pop, const unsigned pop_size, const unsigned dim
     }
 }
 
+// FUNCTION 1
+double function1(const double* x) {
+    double result = 0;
+    auto* z = new double[dim];
+
+    int sign;
+    double hat;
+    double c1;
+    double c2;
+
+    for(unsigned i = 0; i < dim; i++) {
+        z[i] = x[i] - opt1[i];
+        // Transformation
+        if (z[i] > 0) {
+            sign = 1;
+            hat = log(abs(z[i]));
+            c1 = 10;
+            c2 = 7.9;
+            z[i] = sign*exp(hat+0.049*(sin(c1*hat)+sin(c2*hat)));
+        } else if (z[i] == 0) {
+            z[i] = 0;
+        } else {
+            sign = -1;
+            hat = log(abs(z[i]));
+            c1 = 5.5;
+            c2 = 3.1;
+            z[i] = sign*exp(hat+0.049*(sin(c1*hat)+sin(c2*hat)));
+        }
+        result += pow(1.0e6,  i/((double)(dim - 1)) ) * z[i] * z[i];
+    }
+    return(result);
+}
+
 // SELECTION
 void compute_fitness(double** pop, double* fitness, double &min_fitness, double &max_fitness, double &convergence, double &best_fitness, const unsigned pop_size, Benchmarks* fp) {
-    fitness[0] = fp->compute(pop[0]);
+    // fitness[0] = fp->compute(pop[0]);
+    fitness[0] = function1(pop[0]);
     min_fitness = fitness[0];
     max_fitness = fitness[0];
 
     // compute new fitness and find min and max fitness
-    #pragma omp parallel for
+    #pragma omp parallel for default(none) shared(pop, fitness, pop_size, fp) reduction(min:min_fitness) reduction(max:max_fitness)
     for (unsigned i = 1; i < pop_size; i++) {
 
         #pragma omp critical
         {
-        fitness[i] = fp->compute(pop[i]);
+        //fitness[i] = fp->compute(pop[i]);
+        fitness[i] = function1(pop[i]);
         }
 
         if (fitness[i] < min_fitness) {
@@ -41,16 +80,6 @@ void compute_fitness(double** pop, double* fitness, double &min_fitness, double 
         } else if (fitness[i] > max_fitness) {
             max_fitness = fitness[i];
         }
-
-        /*
-        #pragma omp critical
-        {
-            for (unsigned j = 0; j < pop_size; j++) {
-                printf("%e\n", fitness[j]);
-            }
-            printf("%i--------------------\n", i);
-        }
-        */
     }
 
     // check if min_fitness is better than current best_fitness
@@ -60,22 +89,22 @@ void compute_fitness(double** pop, double* fitness, double &min_fitness, double 
     convergence = 1-min_fitness/max_fitness;
 }
 
-void selection_roulette(double** pop, double* fitness, double** mating_list, double &max_fitness, const unsigned pop_size, const unsigned dim) {
+void selection_roulette(double** pop, double* fitness, double** mating_list, double &max_fitness, const unsigned pop_size) {
     // create list of offsets for roulette selection
     auto* offset = new double[pop_size];
+    double total_fitness = 0;
 
     // shift fitness to all positive values and invert it so the minimal value has the highest fitness
+    #pragma omp parallel for default(none) shared(fitness, pop_size, offset, total_fitness, max_fitness)
     for (unsigned i=0; i<pop_size; i++) {
-        // fitness[i] = (max_fitness + abs(min_fitness)) - (fitness[i]+abs(min_fitness));
+        // shift fitness to all positive values and invert it so the minimal value has the highest fitness
         fitness[i] = max_fitness - fitness[i];
-    }
-
-    // calculate total shifted fitness
-    double total_fitness = 0;
-    for (unsigned i=0; i<pop_size; i++) {
+        // calculate total fitness
         total_fitness += fitness[i];
     }
+
     offset[0] = fitness[0]/total_fitness;
+    // calculate offset for roulette selection
     for (unsigned i=1; i<pop_size; i++) {
         offset[i] = offset[i-1] + (fitness[i]/total_fitness);
     }
@@ -98,8 +127,8 @@ void selection_roulette(double** pop, double* fitness, double** mating_list, dou
 }
 
 // CROSSOVER
-void crossover_uniform(double** mating_list, double** pop, const unsigned pop_size, const unsigned dim) {
-    #pragma omp parallel for
+void crossover_uniform(double** mating_list, double** pop, const unsigned pop_size) {
+    #pragma omp parallel for collapse(2) default(none) shared(mating_list, pop, pop_size, dim)
     for (unsigned  i=0; i<pop_size; i++) {
         for (unsigned  j=0; j<dim; j++) {
             if (getrnd() < 0.5) {       // choose gene of parent A
@@ -113,7 +142,7 @@ void crossover_uniform(double** mating_list, double** pop, const unsigned pop_si
 
 // MUTATION
 
-void mutation_random_resetting(double** pop, const unsigned pop_size, const unsigned dim, double mutation_rate) {
+void mutation_random_resetting(double** pop, const unsigned pop_size, double mutation_rate) {
     for (unsigned i=0; i<pop_size; i++) {
         for (unsigned j=0; j<dim; j++) {
             if (getrnd() < mutation_rate) {
@@ -126,7 +155,6 @@ void mutation_random_resetting(double** pop, const unsigned pop_size, const unsi
 double genetic_algorithm(Benchmarks*  fp, int maxevals) {
     unsigned tries = 1;
     const unsigned pop_size=1000;
-    const unsigned dim=1000;
     const double convergence_threshold = 0.1;
 
     auto* best_fitnesses = new double[tries];
@@ -160,7 +188,7 @@ double genetic_algorithm(Benchmarks*  fp, int maxevals) {
         fp->nextRun();
 
         // create INITIAL POPULATION
-        create_population(pop, pop_size, dim);
+        create_population(pop, pop_size);
 
         // compute INITIAL FITNESS
         best_fitness = fp->compute(pop[0]);
@@ -185,11 +213,10 @@ double genetic_algorithm(Benchmarks*  fp, int maxevals) {
             evals++;
 
             // SELECTION (roulette wheel selection)
-            selection_roulette(pop, fitness, mating_list, max_fitness, pop_size, dim);
+            selection_roulette(pop, fitness, mating_list, max_fitness, pop_size);
 
             // CROSSOVER
-            crossover_uniform(mating_list, pop, pop_size, dim);
-
+            crossover_uniform(mating_list, pop, pop_size);
 
             // MUTATION
             double mutation_rate = 0.0001;
@@ -204,10 +231,6 @@ double genetic_algorithm(Benchmarks*  fp, int maxevals) {
                 convergence_counter = 0;
             }
 
-            printf("Min Fitness: %e\n", min_fitness);
-            printf("Max Fitness: %e\n", max_fitness);
-            printf("Convergence: %f\n", convergence);
-
             // write next fitness metrics to export file
             minf = std::to_string(min_fitness);
             std::replace(minf.begin(), minf.end(), '.', ',');
@@ -219,8 +242,13 @@ double genetic_algorithm(Benchmarks*  fp, int maxevals) {
             fitness_export << std::to_string(evals) << ";" << minf << ";" << maxf << ";" << conv << "\n";
 
 
+            printf("Min Fitness: %e\n", min_fitness);
+            printf("Max Fitness: %e\n", max_fitness);
+            printf("Convergence: %f\n", convergence);
+
             printf("---------------------\n");
             printf("Gen: %u\n", evals);
+
         }
 
         // free allocated memory
@@ -258,6 +286,33 @@ double genetic_algorithm(Benchmarks*  fp, int maxevals) {
 }
 
 int main(){
+    // Load optimal vector for function 1
+    stringstream ss;
+    ss<< "cdatafiles/F1-xopt.txt";
+    ifstream file(ss.str());
+    string value;
+    string line;
+    int c=0;
+
+    if (file.is_open())
+    {
+        stringstream iss;
+        while ( getline(file, line) )
+        {
+            iss<<line;
+            while (getline(iss, value, ','))
+            {
+                opt1[c++] = stod(value);
+            }
+            iss.clear();
+        }
+        file.close();
+    }
+    else
+    {
+        cout<<"Cannot open the datafiles '" <<ss.str() <<"'" <<endl;
+    }
+
   /*  Test the basic benchmark function */
   Benchmarks* fp=NULL;
   unsigned funToRun[] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
