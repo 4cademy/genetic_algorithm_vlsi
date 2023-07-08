@@ -35,6 +35,7 @@ double function1(const double* x) {
     double c1;
     double c2;
 
+    # pragma omp parallel for default(none) shared(x, z, dim, opt1) private(sign, hat, c1, c2) reduction(+:result)
     for(unsigned i = 0; i < dim; i++) {
         z[i] = x[i] - opt1[i];
         // Transformation
@@ -55,6 +56,8 @@ double function1(const double* x) {
         }
         result += pow(1.0e6,  i/((double)(dim - 1)) ) * z[i] * z[i];
     }
+
+    delete[] z;
     return(result);
 }
 
@@ -69,11 +72,9 @@ void compute_fitness(double** pop, double* fitness, double &min_fitness, double 
     #pragma omp parallel for default(none) shared(pop, fitness, pop_size, fp) reduction(min:min_fitness) reduction(max:max_fitness)
     for (unsigned i = 1; i < pop_size; i++) {
 
-        #pragma omp critical
-        {
+
         //fitness[i] = fp->compute(pop[i]);
         fitness[i] = function1(pop[i]);
-        }
 
         if (fitness[i] < min_fitness) {
             min_fitness = fitness[i];
@@ -154,7 +155,7 @@ void mutation_random_resetting(double** pop, const unsigned pop_size, double mut
 
 double genetic_algorithm(Benchmarks*  fp, int maxevals) {
     unsigned tries = 1;
-    const unsigned pop_size=1000;
+    const unsigned pop_size=10'000;
     const double convergence_threshold = 0.1;
 
     auto* best_fitnesses = new double[tries];
